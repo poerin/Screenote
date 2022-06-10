@@ -25,8 +25,8 @@ namespace Screenote
         private Size NoteSize;
         private bool ResizeWindow = false;
         private int WindowRight, WindowBottom;
+        private MouseButtons lastMousePressButton = MouseButtons.None;
         private const int edge = 6;
-
 
         public Note(Bitmap bitmap, Point location, Size size)
         {
@@ -66,6 +66,7 @@ namespace Screenote
 
         private void Note_MouseDown(object sender, MouseEventArgs e)
         {
+            lastMousePressButton = e.Button;
             if (e.Button == MouseButtons.Left)
             {
                 if ((Control.MousePosition.X - this.Location.X < edge) || ((this.Location.X + this.Width) - Control.MousePosition.X < edge) || (Control.MousePosition.Y - this.Location.Y < edge) || ((this.Location.Y + this.Height) - Control.MousePosition.Y < edge))
@@ -80,12 +81,6 @@ namespace Screenote
                     MoveY = e.Y + 1;
                     MoveWindow = true;
                 }
-            }
-            else if (e.Button == MouseButtons.Right)
-            {
-                picture.BackgroundImage.Dispose();
-                this.Close();
-                GC.Collect();
             }
             else if (e.Button == MouseButtons.Middle)
             {
@@ -102,6 +97,13 @@ namespace Screenote
             else if (MoveWindow == true)
             {
                 MoveWindow = false;
+            }
+            if (lastMousePressButton == MouseButtons.Right)
+            {
+                lastMousePressButton = MouseButtons.None;
+                picture.BackgroundImage.Dispose();
+                this.Close();
+                GC.Collect();
             }
         }
 
@@ -309,9 +311,11 @@ namespace Screenote
                     break;
                 case Keys.Space:
                     Note_MouseDown(this, new MouseEventArgs(MouseButtons.Middle, 0, Cursor.Position.X, Cursor.Position.Y, 0));
+                    Note_MouseUp(this, null);
                     break;
                 case Keys.Escape:
                     Note_MouseDown(this, new MouseEventArgs(MouseButtons.Right, 0, Cursor.Position.X, Cursor.Position.Y, 0));
+                    Note_MouseUp(this, null);
                     break;
                 case Keys.Enter:
                     Note_DoubleClick(this, new EventArgs());
