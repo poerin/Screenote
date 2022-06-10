@@ -228,7 +228,10 @@ namespace Screenote
         {
             if (shot)
             {
-                Point MouseEnd = e.Location;
+                Point MouseEnd = new Point(
+                    Math.Max(Math.Min(e.Location.X, this.Width - 1), 0),
+                    Math.Max(Math.Min(e.Location.Y, this.Height - 1), 0)
+                );
                 int width = Math.Abs(MouseEnd.X - MouseStart.X) + 1;
                 int height = Math.Abs(MouseEnd.Y - MouseStart.Y) + 1;
                 if (width > 15 && height > 15)
@@ -257,10 +260,10 @@ namespace Screenote
                 Y + 150 > this.Height ? Y - 150 : Y + 50
             );
             magnifier.Visible = true;
-
-            int left = X - 12 < 0 ? 12 - X : 0;
+            // Invalid area(width) around the cursor
+            int left = X < 12 ? 12 - X : 0;
             int right = X + 13 > this.Width ? (X + 13 - this.Width) : 0;
-            int top = Y - 12 < 0 ? 12 - Y : 0;
+            int top = Y < 12 ? 12 - Y : 0;
             int bottom = Y + 13 > this.Height ? (Y + 13 - this.Height) : 0;
 
             Rectangle region = new Rectangle(X - 12 + left, Y - 12 + top, 25 - right, 25 - bottom);
