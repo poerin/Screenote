@@ -11,9 +11,7 @@ namespace Screenote
         Graphics graphicsScreen;
         Graphics graphicsMagnifier;
         Bitmap bitmapScreen;
-        Bitmap bitmapTarget;
-        Point MouseStart; // position in form, >= 0
-        Point CursorStart; // position in screen, -XXX ~ YYY
+        Point startPos; // position in form
         Timer timer = new Timer();
         bool shot = false;
 
@@ -88,6 +86,7 @@ namespace Screenote
 
         protected override void WndProc(ref Message message)
         {
+            var cursorPos = Cursor.Position;
             try
             {
                 switch (message.WParam.ToInt64())
@@ -96,14 +95,14 @@ namespace Screenote
                         {
                             if (this.Visible == false)
                             {
-                                this.Location = new Point(System.Windows.Forms.Screen.FromPoint(Cursor.Position).Bounds.X, System.Windows.Forms.Screen.FromPoint(Cursor.Position).Bounds.Y);
-                                this.Width = System.Windows.Forms.Screen.FromPoint(Cursor.Position).Bounds.Width;
-                                this.Height = System.Windows.Forms.Screen.FromPoint(Cursor.Position).Bounds.Height;
+                                this.Location = new Point(System.Windows.Forms.Screen.FromPoint(cursorPos).Bounds.X, System.Windows.Forms.Screen.FromPoint(Cursor.Position).Bounds.Y);
+                                this.Width = System.Windows.Forms.Screen.FromPoint(cursorPos).Bounds.Width;
+                                this.Height = System.Windows.Forms.Screen.FromPoint(cursorPos).Bounds.Height;
 
                                 bitmapScreen = new Bitmap(this.Width, this.Height);
                                 using (Graphics graphics = Graphics.FromImage(bitmapScreen as Image))
                                 {
-                                    graphics.CopyFromScreen(System.Windows.Forms.Screen.FromPoint(Cursor.Position).Bounds.X, System.Windows.Forms.Screen.FromPoint(Cursor.Position).Bounds.Y, 0, 0, this.Size);
+                                    graphics.CopyFromScreen(System.Windows.Forms.Screen.FromPoint(cursorPos).Bounds.X, System.Windows.Forms.Screen.FromPoint(Cursor.Position).Bounds.Y, 0, 0, this.Size);
                                 }
 
                                 picture.Image = bitmapScreen;
@@ -168,7 +167,7 @@ namespace Screenote
                                         width = height * bitmap.Width / bitmap.Height;
                                     }
 
-                                    int x = Cursor.Position.X - width / 2, y = Cursor.Position.Y - height / 2;
+                                    int x = cursorPos.X - width / 2, y = cursorPos.Y - height / 2;
 
                                     x = x < rectangle.Left ? rectangle.Left : x;
                                     y = y < rectangle.Top ? rectangle.Top : y;
@@ -208,8 +207,7 @@ namespace Screenote
         {
             if (e.Button == MouseButtons.Left)
             {
-                MouseStart = new Point(e.Location.X, e.Location.Y);
-                CursorStart = new Point(Cursor.Position.X, Cursor.Position.Y);
+                startPos = e.Location;
                 shot = true;
             }
             if (e.Button == MouseButtons.Right)
@@ -218,7 +216,7 @@ namespace Screenote
             }
             if (e.Button == MouseButtons.Middle)
             {
-                Color pixel = bitmapScreen.GetPixel(Cursor.Position.X, Cursor.Position.Y);
+                Color pixel = bitmapScreen.GetPixel(e.X, e.Y);
                 Clipboard.SetText(pixel.R.ToString("X2") + pixel.G.ToString("X2") + pixel.B.ToString("X2"));
                 this.Visible = false;
             }
@@ -226,88 +224,69 @@ namespace Screenote
 
         private void picture_MouseUp(object sender, MouseEventArgs e)
         {
-            if (shot)
+            if (!shot) return;
+
+            Point stopPos = new Point(
+                Math.Max(Math.Min(e.X, this.Width - 1), 0),
+                Math.Max(Math.Min(e.Y, this.Height - 1), 0)
+            );
+            int width = Math.Abs(stopPos.X - startPos.X) + 1;
+            int height = Math.Abs(stopPos.Y - startPos.Y) + 1;
+            if (width > 15 && height > 15)
             {
-                Point MouseEnd = new Point(
-                    Math.Max(Math.Min(e.Location.X, this.Width - 1), 0),
-                    Math.Max(Math.Min(e.Location.Y, this.Height - 1), 0)
-                );
-                int width = Math.Abs(MouseEnd.X - MouseStart.X) + 1;
-                int height = Math.Abs(MouseEnd.Y - MouseStart.Y) + 1;
-                if (width > 15 && height > 15)
-                {
-                    int minX = Math.Min(MouseStart.X, MouseEnd.X);
-                    int minY = Math.Min(MouseStart.Y, MouseEnd.Y);
+                int minX = Math.Min(stopPos.X, startPos.X);
+                int minY = Math.Min(stopPos.Y, startPos.Y);
                     Rectangle region = new Rectangle(minX, minY, width, height);
                     Bitmap bitmap = bitmapScreen.Clone(region, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
 
-                    minX = Math.Min(Cursor.Position.X, CursorStart.X);
-                    minY = Math.Min(Cursor.Position.Y, CursorStart.Y);
+                minX = Math.Min(stopPos.X, startPos.X) + Location.X;
+                minY = Math.Min(stopPos.Y, startPos.Y) + Location.Y;
                     Note note = new Note(bitmap, new Point(minX, minY), region.Size);
                     note.Show();
                 }
                 this.Visible = false;
             }
-        }
 
         private void Timer_Tick(object sender, EventArgs e)
         {
             this.Refresh();
-            int X = Math.Max(Math.Min(Cursor.Position.X - Location.X, this.Width), 0);
-            int Y = Math.Max(Math.Min(Cursor.Position.Y - Location.Y, this.Height), 0);
+            int X = Math.Max(Math.Min(Cursor.Position.X - Location.X, this.Width - 1), 0);
+            int Y = Math.Max(Math.Min(Cursor.Position.Y - Location.Y, this.Height - 1), 0);
             magnifier.Location = new Point(
                 X + 150 > this.Width ? X - 150 : X + 50,
                 Y + 150 > this.Height ? Y - 150 : Y + 50
             );
             magnifier.Visible = true;
-            // Invalid area(width) around the cursor
-            int left = X < 12 ? 12 - X : 0;
-            int right = X + 13 > this.Width ? (X + 13 - this.Width) : 0;
-            int top = Y < 12 ? 12 - Y : 0;
-            int bottom = Y + 13 > this.Height ? (Y + 13 - this.Height) : 0;
+            graphicsMagnifier = Graphics.FromImage(magnifier.Image = new Bitmap(100, 100));
 
-            Rectangle region = new Rectangle(X - 12 + left, Y - 12 + top, 25 - right, 25 - bottom);
-            bitmapTarget = bitmapScreen.Clone(region, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
-            Bitmap bitmapMagnifier = new Bitmap(100, 100);
-            graphicsMagnifier = Graphics.FromImage(bitmapMagnifier);
-
-            for (int y = 0; y < region.Height; y++)
+            for (int x = Math.Max(X - 12, 0); x < X + 13 && x < this.Width; ++x)
             {
-                for (int x = 0; x < region.Width; x++)
+                for (int y = Math.Max(Y - 12, 0); y < Y + 13 && y < this.Height; ++y)
                 {
-                    graphicsMagnifier.FillRectangle(
-                        new SolidBrush(bitmapTarget.GetPixel(x, y)),
-                        (x + left) * 4, (y + top) * 4, 4, 4
-                    );
+                    var brush = new SolidBrush(bitmapScreen.GetPixel(x, y));
+                    graphicsMagnifier.FillRectangle(brush, (x - X + 12) * 4, (y - Y + 12) * 4, 4, 4);
                 }
             }
+            SolidBrush grayBrush = new SolidBrush(Color.FromArgb(192, 192, 192));
+            graphicsMagnifier.FillRectangle(grayBrush, 48, 0, 4, 48);
+            graphicsMagnifier.FillRectangle(grayBrush, 0, 48, 48, 4);
+            graphicsMagnifier.FillRectangle(grayBrush, 48, 52, 4, 48);
+            graphicsMagnifier.FillRectangle(grayBrush, 52, 48, 48, 4);
 
-            bitmapTarget.Dispose();
-            graphicsMagnifier.FillRectangles(
-                new SolidBrush(Color.FromArgb(192, 192, 192)),
-                new Rectangle[] {
-                    new Rectangle(48, 0, 4, 48), new Rectangle(48, 52, 4, 48),
-                    new Rectangle(0, 48, 48, 4), new Rectangle(52, 48, 48, 4)
-                }
-            );
-            magnifier.Image = bitmapMagnifier;
-            graphicsScreen.FillRectangles(
-                new SolidBrush(Color.FromArgb(192, 192, 192)),
-                new Rectangle[] {
-                    new Rectangle(X, 0, 1, this.Height),
-                    new Rectangle(0, Y, this.Width, 1)
-                }
-            );
+            graphicsScreen.FillRectangle(grayBrush, X, 0, 1, this.Height);
+            graphicsScreen.FillRectangle(grayBrush, 0, Y, this.Width, 1);
             if (shot)
             {
-                graphicsScreen.FillRectangles(
-                    new SolidBrush(Color.FromArgb(192, 192, 192)),
-                    new Rectangle[] {
-                        new Rectangle(MouseStart.X, 0, 1, this.Height),
-                        new Rectangle(0, MouseStart.Y, this.Width, 1)
-                    }
-                );
+                graphicsScreen.FillRectangle(grayBrush, startPos.X, 0, 1, this.Height);
+                graphicsScreen.FillRectangle(grayBrush, 0, startPos.Y, this.Width, 1);
             }
+            var pixel = bitmapScreen.GetPixel(X, Y);
+            var infoStr = $"RGB: {pixel.R, 2:X2}{pixel.G, 2:X2}{pixel.B, 2:X2}\n";
+            var dx = Cursor.Position.X - Location.X - startPos.X;
+            var dy = Cursor.Position.Y - Location.X - startPos.Y;
+
+            if (shot) infoStr += $"{Math.Abs(dx), 4},{Math.Abs(dy), 4}";
+            graphicsMagnifier.DrawString(infoStr, new Font("Consolas", 8), new SolidBrush(Color.FromArgb(255, 150, 0)), new Point(0, 0));
         }
 
         private void Screen_KeyDown(object sender, KeyEventArgs e)
