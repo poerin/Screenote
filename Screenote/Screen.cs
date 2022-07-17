@@ -282,8 +282,8 @@ namespace Screenote
             }
             var pixel = bitmapScreen.GetPixel(X, Y);
             var infoStr = $"RGB: {pixel.R, 2:X2}{pixel.G, 2:X2}{pixel.B, 2:X2}\n";
-            var dx = Cursor.Position.X - Location.X - startPos.X;
-            var dy = Cursor.Position.Y - Location.X - startPos.Y;
+            var dx = X - startPos.X;
+            var dy = Y - startPos.Y;
 
             if (shot) infoStr += $"{Math.Abs(dx), 4},{Math.Abs(dy), 4}";
             graphicsMagnifier.DrawString(infoStr, new Font("Consolas", 8), new SolidBrush(Color.FromArgb(255, 150, 0)), new Point(0, 0));
